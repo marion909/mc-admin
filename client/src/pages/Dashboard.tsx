@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Console from '../components/Console';
 import FileManager from '../components/FileManager';
+import PlayerList from '../components/PlayerList';
 import { 
     Folder as FolderIcon, Terminal, Box, Play, Square, 
     Trash2, Plus, Server as ServerIcon, Cpu, Settings, Puzzle, Download, X, ExternalLink, Search, Edit,
-    Database as DatabaseIcon, Copy, Lock
+    Database as DatabaseIcon, Copy, Lock, Users, Package
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -48,7 +49,7 @@ function Dashboard() {
   const [pluginModalId, setPluginModalId] = useState<string | null>(null);
   const [pluginUrl, setPluginUrl] = useState('');
   const [pluginFile, setPluginFile] = useState<File | null>(null);
-  const [pluginUploadMode, setPluginUploadMode] = useState<'url' | 'file'>('url');
+  const [pluginUploadMode, setPluginUploadMode] = useState<'url' | 'file' | 'mcadmin'>('url');
   const [installingPlugin, setInstallingPlugin] = useState(false);
   
   // Auth states
@@ -994,6 +995,16 @@ function Dashboard() {
                     {/* Tab Switcher */}
                     <div className="flex border-b border-slate-700 bg-slate-800/50">
                         <button 
+                            onClick={() => setPluginUploadMode('mcadmin')}
+                            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                                pluginUploadMode === 'mcadmin' 
+                                    ? 'bg-slate-900 text-purple-400 border-b-2 border-purple-400' 
+                                    : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                        >
+                            ⭐ MC-Admin Plugins
+                        </button>
+                        <button 
                             onClick={() => setPluginUploadMode('url')}
                             className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                                 pluginUploadMode === 'url' 
@@ -1016,7 +1027,81 @@ function Dashboard() {
                     </div>
                     
                     <div className="p-6 space-y-4">
-                        {pluginUploadMode === 'url' ? (
+                        {pluginUploadMode === 'mcadmin' ? (
+                            <>
+                                <div className="bg-purple-900/20 border border-purple-800/50 rounded p-4">
+                                    <h4 className="text-sm font-semibold text-purple-300 mb-2">🌟 Official MC-Admin Plugins</h4>
+                                    <p className="text-xs text-slate-400">
+                                        Diese Plugins wurden speziell für MC-Admin entwickelt und sind vollständig kompatibel mit dem Admin Panel.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {/* MCAdmin-DataAPI Plugin */}
+                                    <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden hover:border-purple-500 transition-all">
+                                        <div className="p-4">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <h5 className="font-semibold text-purple-400 flex items-center gap-2">
+                                                        <Users className="w-4 h-4" />
+                                                        MCAdmin-DataAPI
+                                                        <span className="text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded border border-green-800">v1.0.0</span>
+                                                    </h5>
+                                                    <p className="text-xs text-slate-400 mt-1">Player Data & Statistics API</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <p className="text-sm text-slate-300 mb-3">
+                                                Stellt REST API zur Verfügung für Echtzeit-Spielerdaten: Position, Health, Inventar, Statistiken und Achievements. 
+                                                Erforderlich für die Players-Tab Funktion im Dashboard.
+                                            </p>
+
+                                            <div className="space-y-2 text-xs">
+                                                <div className="flex gap-2">
+                                                    <span className="text-slate-500">📋 API Port:</span>
+                                                    <span className="text-slate-300 font-mono">8080</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <span className="text-slate-500">✅ Kompatibel:</span>
+                                                    <span className="text-slate-300">Spigot 1.20+, Paper 1.20+</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <span className="text-slate-500">📦 Abhängigkeiten:</span>
+                                                    <span className="text-slate-300">Keine</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 p-3 bg-slate-900 rounded border border-slate-700">
+                                                <p className="text-xs font-semibold text-yellow-400 mb-2">⚙️ Konfiguration erforderlich:</p>
+                                                <div className="space-y-1 text-xs text-slate-400">
+                                                    <p>1. Port 8080 im Docker Container veröffentlichen</p>
+                                                    <p>2. API Key in <span className="font-mono text-purple-400">plugins/MCAdmin-DataAPI/config.yml</span> setzen</p>
+                                                    <p>3. Server neustarten</p>
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                onClick={() => {
+                                                    setPluginUrl('http://localhost:3001/api/mc-admin-plugins/MCAdmin-DataAPI-1.0.0.jar');
+                                                    handleInstallPlugin();
+                                                }}
+                                                className="w-full mt-4 bg-purple-600 hover:bg-purple-500 rounded px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                                Plugin installieren
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Placeholder for future plugins */}
+                                    <div className="bg-slate-800/50 border border-slate-700 border-dashed rounded-lg p-6 text-center">
+                                        <Package className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                                        <p className="text-sm text-slate-500">Weitere MC-Admin Plugins kommen bald...</p>
+                                        <p className="text-xs text-slate-600 mt-1">Check GitHub für Updates</p>
+                                    </div>
+                                </div>
+                            </>
+                        ) : pluginUploadMode === 'url' ? (
                             <>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-2">Plugin JAR URL</label>
@@ -1537,6 +1622,15 @@ function Dashboard() {
                 </div>
             </div>
         )}
+
+        {/* Players Section */}
+        <div className="mb-8">
+            <h2 className="text-xl font-bold mb-4 text-cyan-400 flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Online Players
+            </h2>
+            <PlayerList />
+        </div>
 
         {/* Minecraft Servers Section */}
         <div className="mb-8">

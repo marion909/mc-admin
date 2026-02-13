@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Folder, FileText, ArrowLeft, Save, X, Trash2 } from 'lucide-react';
+import { Folder, FileText, ArrowLeft, Save, X, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface FileManagerProps {
     serverId: string;
@@ -108,6 +108,14 @@ const FileManager: React.FC<FileManagerProps> = ({ serverId, onClose }) => {
                         <div className="bg-slate-950 px-3 py-1 rounded text-sm font-mono text-slate-400">
                            /{path === '.' ? '' : path}
                         </div>
+                        <button 
+                            onClick={loadFiles}
+                            disabled={loading}
+                            className="p-2 hover:bg-slate-700 rounded transition-colors disabled:opacity-50"
+                            title="Refresh"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        </button>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded"><X className="w-5 h-5" /></button>
                 </header>
@@ -139,6 +147,24 @@ const FileManager: React.FC<FileManagerProps> = ({ serverId, onClose }) => {
                             )}
                             
                             {loading && <p className="text-slate-500 p-4">Loading...</p>}
+
+                            {!loading && files.length === 0 && (
+                                <div className="text-center py-12 px-4">
+                                    <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                                    <h3 className="text-lg font-semibold text-slate-300 mb-2">Keine Dateien gefunden</h3>
+                                    <p className="text-sm text-slate-400 mb-4">
+                                        Das Verzeichnis ist leer. Falls der Server gerade gestartet wurde,
+                                        braucht er einige Sekunden um die Dateien zu generieren.
+                                    </p>
+                                    <button 
+                                        onClick={loadFiles}
+                                        className="flex items-center gap-2 mx-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded transition-colors"
+                                    >
+                                        <RefreshCw className="w-4 h-4" />
+                                        Erneut laden
+                                    </button>
+                                </div>
+                            )}
 
                             {!loading && files.map(file => (
                                 <div 

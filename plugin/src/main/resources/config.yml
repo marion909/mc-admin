@@ -1,0 +1,13 @@
+# MCAdmin-DataAPI Configuration
+
+# Port for the REST API server
+port: 8080
+
+# API key for authentication (change this!)
+api-key: "mcadmin-default-key-change-me"
+
+# Enable/disable the API server
+enabled: true
+
+# Log API requests
+log-requests: false

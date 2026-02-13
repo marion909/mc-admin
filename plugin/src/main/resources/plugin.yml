@@ -1,0 +1,7 @@
+name: MCAdmin-DataAPI
+version: 1.0.0
+main: com.mcadmin.dataapi.MCAdminDataAPI
+api-version: 1.20
+description: Player data API for MC-Admin dashboard
+author: MC-Admin
+website: https://github.com/marion909/mc-admin

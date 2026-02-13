@@ -103,6 +103,12 @@ export class DockerService {
              bindPath = bindPath.replace(/\//g, '\\');
         }
         console.log(`[Docker] Mapped bind path: ${serverDir} -> ${bindPath}`);
+    } else {
+        console.warn('⚠️  WARNING: HOST_DATA_PATH environment variable not set!');
+        console.warn('⚠️  New server data will be stored inside the container instead of on the host.');
+        console.warn('⚠️  Set HOST_DATA_PATH when starting mc-admin:');
+        console.warn('⚠️  docker run -e "HOST_DATA_PATH=/absolute/path/to/server/data/servers" ...');
+        console.warn(`⚠️  Using container path as fallback: ${bindPath}`);
     }
 
     // Construct Environment Variables
@@ -224,6 +230,10 @@ export class DockerService {
              bindPath = bindPath.replace(/\//g, '\\');
         }
         console.log(`[Docker] Mapped proxy bind path: ${proxyDir} -> ${bindPath}`);
+    } else {
+        console.warn('⚠️  WARNING: HOST_DATA_PATH environment variable not set!');
+        console.warn('⚠️  Proxy data will be stored inside the container instead of on the host.');
+        console.warn(`⚠️  Using container path as fallback: ${bindPath}`);
     }
 
     const imageName = 'itzg/bungeecord';
@@ -393,6 +403,10 @@ enable-player-address-logging = true
              finalBindPath = finalBindPath.replace(/\//g, '\\');
         }
         console.log(`[Docker] Mapped DB bind path: ${dbDataDir} -> ${finalBindPath}`);
+    } else {
+        console.warn('⚠️  WARNING: HOST_DATA_PATH environment variable not set!');
+        console.warn('⚠️  Database data will be stored inside the container instead of on the host.');
+        console.warn(`⚠️  Using container path as fallback: ${finalBindPath}`);
     }
 
     let imageName = '';

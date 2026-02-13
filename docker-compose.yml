@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mc-admin:
+    build: .
+    image: mc-admin:latest
+    container_name: mc-admin
+    restart: unless-stopped
+    
+    ports:
+      - "3001:3001"
+    
+    environment:
+      # CRITICAL: Required for proper volume mounting of Minecraft servers
+      # This must be the absolute path on your host system
+      - HOST_DATA_PATH=C:\Projekte\MC-Admin\server\data\servers
+      
+      # Optional: Set admin credentials (default: admin/admin)
+      # - ADMIN_USERNAME=admin
+      # - ADMIN_PASSWORD=admin
+    
+    volumes:
+      # Docker socket for managing Minecraft server containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+      # Persistent data directory for servers, proxies, databases
+      - ./server/data:/app/data
+      
+      # MC-Admin plugins directory (for official plugins like MCAdmin-DataAPI)
+      - ./server/mc-admin-plugins:/app/mc-admin-plugins
+    
+    network_mode: bridge
+    
+    # Ensure Docker daemon is accessible
+    privileged: false
+
+# Note: Minecraft servers, proxies, and databases will be created dynamically
+# by the mc-admin container using the Docker API
+# All containers use the default 'bridge' network

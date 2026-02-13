@@ -12,6 +12,7 @@ import { setupSocket } from './socketHandler.js';
 import { dockerService } from './dockerService.js';
 import { fileService } from './fileService.js';
 import { authService } from './authService.js';
+import { playerService } from './playerService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,7 +101,66 @@ app.post('/api/servers', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+// MC-Admin Plugins - List available official plugins
+app.get('/api/mc-admin-plugins', async (req, res) => {
+    try {
+        const plugins = [
+            {
+                id: 'mcadmin-dataapi',
+                name: 'MCAdmin-DataAPI',
+                version: '1.0.0',
+                description: 'Player Data & Statistics REST API',
+                fileName: 'MCAdmin-DataAPI-1.0.0.jar',
+                downloadUrl: '/api/mc-admin-plugins/MCAdmin-DataAPI-1.0.0.jar',
+                requirements: {
+                    minecraft: '1.20+',
+                    serverType: ['Spigot', 'Paper'],
+                    dependencies: []
+                },
+                config: {
+                    port: 8080,
+                    requiresApiKey: true,
+                    configFile: 'plugins/MCAdmin-DataAPI/config.yml'
+                }
+            }
+        ];
+        res.json({ plugins });
+    } catch (e: any) {
+        console.error('[API] MC-Admin plugins list error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
 
+// MC-Admin Plugins - Download plugin JAR
+app.get('/api/mc-admin-plugins/:filename', async (req, res) => {
+    try {
+        const { filename } = req.params;
+        
+        // Validate filename to prevent directory traversal
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return res.status(400).json({ error: 'Invalid filename' });
+        }
+        
+        if (!filename.endsWith('.jar')) {
+            return res.status(400).json({ error: 'Only .jar files are allowed' });
+        }
+        
+        const pluginPath = path.join(__dirname, '..', 'mc-admin-plugins', filename);
+        
+        // Check if file exists
+        if (!fs.existsSync(pluginPath)) {
+            return res.status(404).json({ error: 'Plugin not found' });
+        }
+        
+        console.log(`[API] Serving MC-Admin plugin: ${filename}`);
+        res.setHeader('Content-Type', 'application/java-archive');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.sendFile(pluginPath);
+    } catch (e: any) {
+        console.error('[API] MC-Admin plugin download error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
 app.post('/api/servers/:id/start', async (req, res) => {
     try {
         await dockerService.startContainer(req.params.id);
@@ -881,6 +941,32 @@ app.post('/api/databases', async (req, res) => {
         });
     } catch (e: any) {
         console.error('[API] Create DB error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Player Management API
+app.get('/api/players', async (req, res) => {
+    try {
+        const result = await playerService.getAllPlayers();
+        res.json(result);
+    } catch (e: any) {
+        console.error('[API] Get all players error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/servers/:id/players', async (req, res) => {
+    try {
+        const players = await playerService.getServerPlayersById(req.params.id);
+        res.json({ 
+            players,
+            count: players.length,
+            serverId: req.params.id,
+            timestamp: Date.now()
+        });
+    } catch (e: any) {
+        console.error(`[API] Get players for server ${req.params.id} error:`, e);
         res.status(500).json({ error: e.message });
     }
 });
