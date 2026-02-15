@@ -6,7 +6,7 @@ import PlayerList from '../components/PlayerList';
 import { 
     Folder as FolderIcon, Terminal, Box, Play, Square, 
     Trash2, Plus, Server as ServerIcon, Cpu, Settings, Puzzle, Download, X, ExternalLink, Search, Edit,
-    Database as DatabaseIcon, Copy, Lock, Users, Package
+    Database as DatabaseIcon, Copy, Lock, Users, Package, ChevronDown, HardDrive
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,6 +55,15 @@ function Dashboard() {
   // Auth states
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '' });
+  
+  // Settings dropdown
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  
+  // Backup states
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [selectedBackupTargets, setSelectedBackupTargets] = useState<string[]>([]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -70,6 +79,110 @@ function Dashboard() {
           alert(`Failed to change password: ${err.response?.data?.error || err.message}`);
       }
   };
+  
+  // Backup functions
+  const fetchBackups = async () => {
+      try {
+          const response = await axios.get('/api/backups');
+          setBackups(response.data.backups || []);
+      } catch (err: any) {
+          console.error('Failed to fetch backups:', err);
+      }
+  };
+  
+  const handleCreateBackup = async (fullBackup: boolean = false) => {
+      try {
+          setBackupInProgress(true);
+          
+          const payload = fullBackup 
+              ? { fullBackup: true }
+              : { targets: selectedBackupTargets };
+          
+          const response = await axios.post('/api/backups/create', payload);
+          
+          alert(response.data.message || 'Backup created successfully');
+          await fetchBackups();
+          setSelectedBackupTargets([]);
+      } catch (err: any) {
+          alert(`Failed to create backup: ${err.response?.data?.error || err.message}`);
+      } finally {
+          setBackupInProgress(false);
+      }
+  };
+  
+  const handleDownloadBackup = async (filename: string) => {
+      try {
+          // Use axios with JWT token from localStorage
+          const token = localStorage.getItem('token');
+          const response = await axios.get(`/api/backups/${filename}/download`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              responseType: 'blob'
+          });
+          
+          // Create blob URL and trigger download
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', filename);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+      } catch (err: any) {
+          alert(`Failed to download backup: ${err.response?.data?.error || err.message}`);
+      }
+  };
+  
+  const handleRestoreBackup = async (filename: string, containerId: string) => {
+      if (!confirm(`Are you sure you want to restore ${filename}? This will stop the container and replace all data!`)) {
+          return;
+      }
+      
+      try {
+          await axios.post(`/api/backups/${filename}/restore/${containerId}`);
+          alert('Backup restored successfully! Container has been restarted.');
+          await fetchServers(); // Refresh container list
+      } catch (err: any) {
+          alert(`Failed to restore backup: ${err.response?.data?.error || err.message}`);
+      }
+  };
+  
+  const handleDeleteBackup = async (filename: string) => {
+      if (!confirm(`Are you sure you want to delete ${filename}?`)) {
+          return;
+      }
+      
+      try {
+          await axios.delete(`/api/backups/${filename}`);
+          alert('Backup deleted successfully');
+          await fetchBackups();
+      } catch (err: any) {
+          alert(`Failed to delete backup: ${err.response?.data?.error || err.message}`);
+      }
+  };
+  
+  const toggleBackupTarget = (containerId: string) => {
+      setSelectedBackupTargets(prev => 
+          prev.includes(containerId) 
+              ? prev.filter(id => id !== containerId)
+              : [...prev, containerId]
+      );
+  };
+  
+  const formatBytes = (bytes: number) => {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+  
+  // Load backups when modal opens
+  useEffect(() => {
+      if (showBackupModal) {
+          fetchBackups();
+      }
+  }, [showBackupModal]);
   
   // Edit State
   const [editServerId, setEditServerId] = useState<string | null>(null);
@@ -524,13 +637,57 @@ function Dashboard() {
               <Plus className="w-4 h-4" /> New Database
             </button>
             <div className="w-px h-8 bg-slate-800 mx-2"></div>
-             <button 
-              onClick={() => setShowChangePassword(true)}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-md font-medium transition-colors border border-slate-700"
-            >
-              <Lock className="w-4 h-4" /> Password
-            </button>
-             <button 
+            
+            {/* Settings Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-md font-medium transition-colors border border-slate-700"
+              >
+                <Settings className="w-4 h-4" /> 
+                Settings
+                <ChevronDown className={`w-4 h-4 transition-transform ${showSettingsDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showSettingsDropdown && (
+                <>
+                  {/* Click-outside handler */}
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowSettingsDropdown(false)}
+                  />
+                  
+                  {/* Dropdown menu */}
+                  <div className="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setShowChangePassword(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors text-left"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Change Password</span>
+                    </button>
+                    
+                    <div className="border-t border-slate-700" />
+                    
+                    <button
+                      onClick={() => {
+                        setShowBackupModal(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors text-left"
+                    >
+                      <HardDrive className="w-4 h-4" />
+                      <span>Backup & Restore</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <button 
               onClick={logout}
               className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2 rounded-md font-medium transition-colors border border-red-500/20"
             >
@@ -958,6 +1115,231 @@ function Dashboard() {
             </div>
         </div>
       )}
+
+        {/* Backup & Restore Modal */}
+        {showBackupModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-xl flex flex-col">
+                    {/* Header */}
+                    <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+                        <div className="flex items-center gap-2">
+                            <HardDrive className="w-5 h-5 text-blue-400" />
+                            <h3 className="font-semibold text-white">Backup & Restore</h3>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                setShowBackupModal(false);
+                                setSelectedBackupTargets([]);
+                            }} 
+                            className="text-slate-400 hover:text-white"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto flex-1">
+                        {/* Create Backup Section */}
+                        <div className="mb-6 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                            <h4 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                                <Download className="w-4 h-4" />
+                                Create Backup
+                            </h4>
+                            
+                            {/* Full Backup Button */}
+                            <button
+                                onClick={() => handleCreateBackup(true)}
+                                disabled={backupInProgress}
+                                className="w-full mb-4 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                                <HardDrive className="w-4 h-4" />
+                                {backupInProgress ? 'Creating Backup...' : 'Create Full Backup (All Containers)'}
+                            </button>
+                            
+                            <div className="border-t border-slate-700 my-4 pt-4">
+                                <p className="text-sm text-slate-400 mb-3">Or select specific containers:</p>
+                                
+                                {/* Server Selection */}
+                                {servers.length > 0 && (
+                                    <div className="mb-3">
+                                        <p className="text-xs font-semibold text-blue-400 mb-2">Minecraft Servers</p>
+                                        <div className="space-y-2">
+                                            {servers.map(server => (
+                                                <label key={server.Id} className="flex items-center gap-2 text-sm text-slate-300 hover:bg-slate-800 p-2 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedBackupTargets.includes(server.Id)}
+                                                        onChange={() => toggleBackupTarget(server.Id)}
+                                                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <ServerIcon className="w-4 h-4" />
+                                                    {server.Names[0].replace('/', '')}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Proxy Selection */}
+                                {proxies.length > 0 && (
+                                    <div className="mb-3">
+                                        <p className="text-xs font-semibold text-purple-400 mb-2">Proxies</p>
+                                        <div className="space-y-2">
+                                            {proxies.map(proxy => (
+                                                <label key={proxy.Id} className="flex items-center gap-2 text-sm text-slate-300 hover:bg-slate-800 p-2 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedBackupTargets.includes(proxy.Id)}
+                                                        onChange={() => toggleBackupTarget(proxy.Id)}
+                                                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <Box className="w-4 h-4" />
+                                                    {proxy.Names[0].replace('/', '')}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Database Selection */}
+                                {databases.length > 0 && (
+                                    <div className="mb-3">
+                                        <p className="text-xs font-semibold text-green-400 mb-2">Databases</p>
+                                        <div className="space-y-2">
+                                            {databases.map(db => (
+                                                <label key={db.Id} className="flex items-center gap-2 text-sm text-slate-300 hover:bg-slate-800 p-2 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedBackupTargets.includes(db.Id)}
+                                                        onChange={() => toggleBackupTarget(db.Id)}
+                                                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <DatabaseIcon className="w-4 h-4" />
+                                                    {db.Names[0].replace('/', '')}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <button
+                                    onClick={() => handleCreateBackup(false)}
+                                    disabled={backupInProgress || selectedBackupTargets.length === 0}
+                                    className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                                >
+                                    {backupInProgress ? 'Creating...' : `Create Backup (${selectedBackupTargets.length} selected)`}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* Backups List */}
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="font-semibold text-slate-200">Available Backups</h4>
+                                <button 
+                                    onClick={fetchBackups}
+                                    className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                >
+                                    <Download className="w-3 h-3" /> Refresh
+                                </button>
+                            </div>
+                            
+                            {backups.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">
+                                    <HardDrive className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                    <p>No backups found</p>
+                                    <p className="text-sm">Create your first backup above</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {backups.map(backup => (
+                                        <div key={backup.filename} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                                            backup.type === 'server' ? 'bg-blue-900/50 text-blue-300' :
+                                                            backup.type === 'proxy' ? 'bg-purple-900/50 text-purple-300' :
+                                                            backup.type === 'database' ? 'bg-green-900/50 text-green-300' :
+                                                            'bg-yellow-900/50 text-yellow-300'
+                                                        }`}>
+                                                            {backup.type}
+                                                        </span>
+                                                        <h5 className="font-mono text-sm text-slate-200 truncate">{backup.name}</h5>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                                                        <span>{new Date(backup.date).toLocaleString()}</span>
+                                                        <span>{formatBytes(backup.size)}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleDownloadBackup(backup.filename)}
+                                                        className="p-2 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
+                                                        title="Download"
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                    </button>
+                                                    
+                                                    <select
+                                                        onChange={(e) => e.target.value && handleRestoreBackup(backup.filename, e.target.value)}
+                                                        className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded text-sm transition-colors"
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="">Restore to...</option>
+                                                        {backup.type === 'full' ? (
+                                                            // For full backups, show ALL containers
+                                                            <>
+                                                                {servers.length > 0 && <optgroup label="Servers">
+                                                                    {servers.map(s => (
+                                                                        <option key={s.Id} value={s.Id}>{s.Names[0].replace('/', '')}</option>
+                                                                    ))}
+                                                                </optgroup>}
+                                                                {proxies.length > 0 && <optgroup label="Proxies">
+                                                                    {proxies.map(p => (
+                                                                        <option key={p.Id} value={p.Id}>{p.Names[0].replace('/', '')}</option>
+                                                                    ))}
+                                                                </optgroup>}
+                                                                {databases.length > 0 && <optgroup label="Databases">
+                                                                    {databases.map(d => (
+                                                                        <option key={d.Id} value={d.Id}>{d.Names[0].replace('/', '')}</option>
+                                                                    ))}
+                                                                </optgroup>}
+                                                            </>
+                                                        ) : (
+                                                            // For specific backups, show only matching type
+                                                            <>
+                                                                {backup.type === 'server' && servers.map(s => (
+                                                                    <option key={s.Id} value={s.Id}>{s.Names[0].replace('/', '')}</option>
+                                                                ))}
+                                                                {backup.type === 'proxy' && proxies.map(p => (
+                                                                    <option key={p.Id} value={p.Id}>{p.Names[0].replace('/', '')}</option>
+                                                                ))}
+                                                                {backup.type === 'database' && databases.map(d => (
+                                                                    <option key={d.Id} value={d.Id}>{d.Names[0].replace('/', '')}</option>
+                                                                ))}
+                                                            </>
+                                                        )}
+                                                    </select>
+                                                    
+                                                    <button
+                                                        onClick={() => handleDeleteBackup(backup.filename)}
+                                                        className="p-2 bg-red-600 hover:bg-red-500 rounded text-white transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* ... Rest of the UI remains the same ... */}
         {activeConsoleId && (
@@ -1676,6 +2058,13 @@ function Dashboard() {
                          <button onClick={() => setPluginModalId(server.Id)} className="p-2 hover:bg-purple-900/30 text-purple-400 rounded-md transition-colors border border-transparent hover:border-purple-900" title="Install Plugin">
                             <Puzzle className="w-5 h-5" />
                          </button>
+                         
+                         <button onClick={() => {
+                            setSelectedBackupTargets([server.Id]);
+                            handleCreateBackup(false);
+                         }} className="p-2 hover:bg-blue-900/30 text-blue-400 rounded-md transition-colors border border-transparent hover:border-blue-900" title="Create Backup">
+                            <HardDrive className="w-5 h-5" />
+                         </button>
 
                          {server.State !== 'running' ? (
                             <button onClick={() => handleAction(server.Id, 'start')} className="p-2 hover:bg-green-900/30 text-green-400 rounded-md transition-colors border border-transparent hover:border-green-900" title="Start">
@@ -1733,6 +2122,13 @@ function Dashboard() {
                                  <button onClick={() => setPluginModalId(proxy.Id)} className="p-2 hover:bg-purple-900/30 text-purple-400 rounded-md transition-colors border border-transparent hover:border-purple-900" title="Install Plugin">
                                     <Puzzle className="w-5 h-5" />
                                  </button>
+                                 
+                                 <button onClick={() => {
+                                    setSelectedBackupTargets([proxy.Id]);
+                                    handleCreateBackup(false);
+                                 }} className="p-2 hover:bg-blue-900/30 text-blue-400 rounded-md transition-colors border border-transparent hover:border-blue-900" title="Create Backup">
+                                    <HardDrive className="w-5 h-5" />
+                                 </button>
 
                                  <button onClick={() => openEditProxy(proxy.Id)} className="p-2 hover:bg-blue-900/30 text-blue-400 rounded-md transition-colors border border-transparent hover:border-blue-900" title="Edit Proxy">
                                     <Edit className="w-5 h-5" />
@@ -1787,6 +2183,13 @@ function Dashboard() {
                                     <span className="text-xs uppercase bg-slate-800 px-2 py-0.5 rounded text-slate-400">{dbType}</span>
                                 </div>
                                 <div className="flex gap-2">
+                                     <button onClick={() => {
+                                        setSelectedBackupTargets([db.Id]);
+                                        handleCreateBackup(false);
+                                     }} className="p-1.5 hover:bg-blue-900/30 text-blue-400 rounded transition-colors" title="Create Backup">
+                                        <HardDrive className="w-4 h-4" />
+                                     </button>
+                                     
                                      <button onClick={() => handleProxyAction(db.Id, 'delete')} className="p-1.5 hover:bg-red-900/30 text-red-400 rounded transition-colors" title="Delete">
                                         <Trash2 className="w-4 h-4" />
                                      </button>

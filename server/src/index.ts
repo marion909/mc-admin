@@ -13,6 +13,7 @@ import { dockerService } from './dockerService.js';
 import { fileService } from './fileService.js';
 import { authService } from './authService.js';
 import { playerService } from './playerService.js';
+import { BackupService } from './backupService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const isWindows = process.platform === 'win32';
 const socketPath = isWindows ? '//./pipe/docker_engine' : '/var/run/docker.sock';
 const docker = new Docker({ socketPath });
+const backupService = new BackupService();
 
 const app = express();
 const httpServer = createServer(app);
@@ -967,6 +969,121 @@ app.get('/api/servers/:id/players', async (req, res) => {
         });
     } catch (e: any) {
         console.error(`[API] Get players for server ${req.params.id} error:`, e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Backup Management API
+// Create backup(s)
+app.post('/api/backups/create', async (req, res) => {
+    try {
+        const { targets, fullBackup } = req.body;
+
+        if (fullBackup) {
+            // Create full backup of all containers
+            console.log('[API] Creating full backup...');
+            const result = await backupService.createFullBackup();
+            res.json({ 
+                success: true, 
+                backup: result,
+                message: `Full backup created with ${result.count} containers`
+            });
+        } else if (targets && Array.isArray(targets)) {
+            // Create backups for specific containers
+            console.log(`[API] Creating backups for ${targets.length} containers...`);
+            const results = [];
+            const errors = [];
+
+            for (const containerId of targets) {
+                try {
+                    const result = await backupService.createBackup(containerId);
+                    results.push(result);
+                } catch (error: any) {
+                    errors.push({ containerId, error: error.message });
+                }
+            }
+
+            res.json({ 
+                success: errors.length === 0,
+                backups: results,
+                errors: errors.length > 0 ? errors : undefined,
+                message: `Created ${results.length} backup(s)${errors.length > 0 ? `, ${errors.length} failed` : ''}`
+            });
+        } else {
+            res.status(400).json({ error: 'Either targets array or fullBackup flag required' });
+        }
+    } catch (e: any) {
+        console.error('[API] Backup creation error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// List all backups
+app.get('/api/backups', async (req, res) => {
+    try {
+        const backups = await backupService.listBackups();
+        res.json({ backups, count: backups.length });
+    } catch (e: any) {
+        console.error('[API] List backups error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Download backup
+app.get('/api/backups/:filename/download', async (req, res) => {
+    try {
+        const { filename } = req.params;
+        
+        // Validate filename (security)
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return res.status(400).json({ error: 'Invalid filename' });
+        }
+
+        const backupPath = backupService.getBackupPath(filename);
+        
+        if (!fs.existsSync(backupPath)) {
+            return res.status(404).json({ error: 'Backup not found' });
+        }
+
+        console.log(`[API] Downloading backup: ${filename}`);
+        res.download(backupPath, filename);
+    } catch (e: any) {
+        console.error('[API] Backup download error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Restore backup
+app.post('/api/backups/:filename/restore/:containerId', async (req, res) => {
+    try {
+        const { filename, containerId } = req.params;
+        
+        console.log(`[API] Restoring backup ${filename} to container ${containerId}...`);
+        await backupService.restoreBackup(containerId, filename);
+        
+        res.json({ 
+            success: true, 
+            message: `Backup ${filename} restored successfully to ${containerId}`
+        });
+    } catch (e: any) {
+        console.error('[API] Backup restore error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Delete backup
+app.delete('/api/backups/:filename', async (req, res) => {
+    try {
+        const { filename } = req.params;
+        
+        await backupService.deleteBackup(filename);
+        
+        res.json({ 
+            success: true, 
+            message: `Backup ${filename} deleted successfully`
+        });
+    } catch (e: any) {
+        console.error('[API] Backup delete error:', e);
         res.status(500).json({ error: e.message });
     }
 });
